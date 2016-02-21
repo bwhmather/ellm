@@ -1,10 +1,8 @@
-use std::str;
-use std::collections::HashMap;
-
 use combine;
 use combine::{Parser, ParserExt};
 
 use ast;
+
 
 fn name<I>(input: combine::State<I>) -> combine::ParseResult<String, I>
 where I: combine::primitives::Stream<Item=char> {
@@ -36,7 +34,9 @@ where I: combine::primitives::Stream<Item=char> {
 
 fn prototype<I>(input: combine::State<I>) -> combine::ParseResult<ast::Prototype, I>
 where I: combine::primitives::Stream<Item=char> {
-    let arg = combine::many1::<Vec<_>, _>(combine::token(' ')).with(combine::parser(name));
+    let arg = combine::try(
+        combine::many1::<Vec<_>, _>(combine::token(' ')).with(combine::parser(name))
+    );
 
     (
         combine::parser(name),
@@ -51,8 +51,6 @@ fn function<I>(input: combine::State<I>) -> combine::ParseResult<ast::Function, 
 where I: combine::primitives::Stream<Item=char> {
     (
         combine::parser(prototype),
-//        combine::spaces().with(combine::token('=')).with(combine::spaces()),
-//        combine::token(' ').with(combine::token('=')).with(combine::token(' ')),
         combine::spaces().with(combine::token('=')).with(combine::spaces()),
         combine::parser(expression)
     ).map(|(prototype, _, body)| {
@@ -77,34 +75,19 @@ where I: combine::primitives::Stream<Item=char> {
 
 fn module<I>(input: combine::State<I>) -> combine::ParseResult<ast::Module, I>
 where I: combine::primitives::Stream<Item=char> {
-    combine::sep_by(combine::parser(statement), combine::spaces()).map(
-        |statements| ast::Module{ statements: statements }
-    ).parse_state(input)
+    combine::spaces().with(
+        combine::sep_by(combine::parser(statement), combine::spaces()).map(
+            |statements| ast::Module{ statements: statements }
+        )
+    ).skip(combine::spaces()).parse_state(input)
 }
 
 
-pub fn parse(source: String) -> ast::Module {
-    ast::Module{ statements: Vec::new() }
+pub fn parse(source: &str) -> ast::Module {
+    // TODO panic if any input remains
+    let (module, _) = combine::parser(module).parse(source).unwrap();
+    return module;
 }
-
-
-
-fn assignment<I>(input: combine::State<I>) -> combine::ParseResult<(), I>
-where I: combine::primitives::Stream<Item=char> {
-    combine::spaces().with(combine::token('=')).with(combine::spaces())
-        .map(
-        |_| {()}
-    ).parse_state(input)
-}
-
-#[test]
-fn test_temp() {
-    assert_eq!(
-        combine::parser(assignment).parse("= "),
-        Ok(((), ""))
-    )
-}
-
 
 
 #[test]
@@ -153,6 +136,14 @@ fn parse_prototype_test() {
             args: vec!["n".to_string()],
         }, ""))
     );
+
+    assert_eq!(
+        combine::parser(prototype).parse("fizzbuzz n ="),
+        Ok((ast::Prototype{
+            name: "fizzbuzz".to_string(),
+            args: vec!["n".to_string()],
+        }, " ="))
+    );
 }
 
 #[test]
@@ -190,6 +181,29 @@ fn parse_module_test() {
             ]
         }, ""))
     );
-    combine::parser(module).parse("\nvar = 1\n\nignore x = 0");
+
+    assert_eq!(
+        combine::parser(module).parse("\nvar = 1\n\nignore x = 0"),
+        Ok((ast::Module{
+            statements: vec![
+                ast::Statement::Definition(ast::Function{
+                    prototype: ast::Prototype{
+                        name: "var".to_string(),
+                        args: vec![],
+                    },
+                    body: ast::Expression::Literal(1),
+                }),
+                ast::Statement::Definition(ast::Function{
+                    prototype: ast::Prototype{
+                        name: "ignore".to_string(),
+                        args: vec!["x".to_string()],
+                    },
+                    body: ast::Expression::Literal(0),
+                }),
+            ]
+        }, ""))
+    );
+
+
 }
 
