@@ -1,0 +1,7 @@
+[package]
+name = "ellm"
+version = "0.1.0"
+authors = ["Ben Mather <bwhmather@bwhmather.com>"]
+
+[dependencies]
+combine = "*"
