@@ -1,8 +1,8 @@
+#![feature(str_char)]
 
 extern crate combine;
-pub mod parser;
-pub mod ast;
 
-#[test]
-fn it_works() {
-}
+pub mod ast;
+pub mod lexer;
+pub mod parser;
+pub mod compiler;
