@@ -2,9 +2,9 @@
 pub enum Expression {
     Literal(i64),
     Variable(String),
-//   BinaryExpr(String, Box<Expression>, Box<Expression>),
     Call(String, Vec<Expression>)
 }
+
 
 #[derive(PartialEq, Clone, Debug)]
 pub struct Prototype {
@@ -25,8 +25,6 @@ pub enum Statement {
     Declaration(Prototype),
     Definition(Function),
 }
-
-// declarations
 
 
 #[derive(PartialEq, Clone, Debug)]
