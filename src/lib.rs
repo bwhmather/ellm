@@ -1,5 +1,8 @@
 #![feature(str_char)]
+#![feature(plugin)]
+#![plugin(regex_macros)]
 
+extern crate regex;
 extern crate combine;
 
 pub mod ast;

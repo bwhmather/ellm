@@ -59,13 +59,51 @@ impl<'a> Tokenizer<'a> {
             let CharRange{ ch, next } = self.input.char_range_at(self.cursor); 
 
             match ch {
-                'a'...'z' => {
+                'a'...'z' | 'A'...'Z' => {
                     self.cursor = next;
                 }
                 _ => break,
             }
         }
         Ok(VarName(&self.input[token_start..self.cursor]))
+    }
+
+    fn scan_typename(&mut self) -> TokenizerResult<'a> {
+        let token_start = self.cursor;
+
+        loop {
+            if self.input.len() == self.cursor {
+                break;
+            }
+
+            if !self.input.is_char_boundary(self.cursor) {
+                return Err("encountered invalid character");
+            }
+
+            let CharRange{ ch, next } = self.input.char_range_at(self.cursor); 
+
+            match ch {
+                'a'...'z' | 'A'...'Z' => {
+                    self.cursor = next;
+                }
+                _ => break,
+            }
+        }
+        Ok(VarName(&self.input[token_start..self.cursor]))
+    }
+
+    fn scan_number(&mut self) -> TokenizerResult<'a> {
+        let re = regex!(r"^[0-9]+");
+
+        match re.find(&self.input[self.cursor..]) {
+            Some((token_start, token_end)) => {
+                self.cursor = token_end;
+                Ok(Number(&self.input[token_start..token_end]))
+            }
+            None => {
+                Err("invalid number")
+            }
+        }
     }
 
     pub fn next(&mut self) -> TokenizerResult<'a> {
@@ -83,22 +121,28 @@ impl<'a> Tokenizer<'a> {
 
         match ch {
             'a'...'z' => {
-                return self.scan_varname();
+                self.scan_varname()
+            }
+            'A'...'Z' => {
+                self.scan_typename()
+            }
+            '0'...'0' => {
+                self.scan_number()
             }
             '(' => {
                 self.cursor = next;
-                return Ok(OpeningParenthesis);
-            },
+                Ok(OpeningParenthesis)
+            }
             ')' => {
                 self.cursor = next;
-                return Ok(ClosingParenthesis);
-            },
+                Ok(ClosingParenthesis)
+            }
             '-' => {
                 self.cursor = next;
-                return Err("Not implemented");
+                Err("Not implemented")
             }
             _ => {
-                return Err("");
+                Err("")
             }
         }
     }
