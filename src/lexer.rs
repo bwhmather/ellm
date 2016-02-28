@@ -96,7 +96,9 @@ impl<'a> Tokenizer<'a> {
         let re = regex!(r"^[0-9]+");
 
         match re.find(&self.input[self.cursor..]) {
-            Some((token_start, token_end)) => {
+            Some((_, token_size)) => {
+                let token_start = self.cursor;
+                let token_end = token_start + token_size;
                 self.cursor = token_end;
                 Ok(Number(&self.input[token_start..token_end]))
             }
@@ -126,7 +128,7 @@ impl<'a> Tokenizer<'a> {
             'A'...'Z' => {
                 self.scan_typename()
             }
-            '0'...'0' => {
+            '0'...'9' => {
                 self.scan_number()
             }
             '(' => {
@@ -167,5 +169,16 @@ fn test_tokenize() {
     assert_eq!(tokenizer.next(), Ok(VarName("world")));
     assert_eq!(tokenizer.next(), Ok(ClosingParenthesis));
     assert_eq!(tokenizer.next(), Ok(EOF));
+    assert_eq!(tokenizer.next(), Ok(EOF));
+}
+
+#[test]
+fn test_tokenize_numbers() {
+    let program = "1 234 5";
+    let mut tokenizer = tokenize(program);
+
+    assert_eq!(tokenizer.next(), Ok(Number("1")));
+    assert_eq!(tokenizer.next(), Ok(Number("234")));
+    assert_eq!(tokenizer.next(), Ok(Number("5")));
     assert_eq!(tokenizer.next(), Ok(EOF));
 }
