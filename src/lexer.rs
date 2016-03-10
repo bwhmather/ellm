@@ -11,7 +11,7 @@ pub enum Token<'a> {
     OpeningParenthesis,
     ClosingParenthesis,
     Comma,
-    Operator,
+    Operator(&'a str),
     EOF,
 }
 
@@ -93,7 +93,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn scan_number(&mut self) -> TokenizerResult<'a> {
-        let re = regex!(r"^[0-9]+");
+        let re = regex!(r"^-?[0-9]+");
 
         match re.find(&self.input[self.cursor..]) {
             Some((_, token_size)) => {
@@ -140,8 +140,17 @@ impl<'a> Tokenizer<'a> {
                 Ok(ClosingParenthesis)
             }
             '-' => {
-                self.cursor = next;
-                Err("Not implemented")
+                match self.input.char_at(next) {
+                    '0'...'9' => {
+                        self.scan_number()
+                    }
+                    _ => {
+                        let token_start = self.cursor;
+                        let token_end = next;
+                        self.cursor = next;
+                        Ok(Operator(&self.input[token_start..token_end]))
+                    }
+                }
             }
             _ => {
                 Err("")
@@ -161,11 +170,12 @@ pub fn tokenize(input: &str) -> Tokenizer {
 
 #[test]
 fn test_tokenize() {
-    let program = "(hello world)";
+    let program = "(hello - world)";
     let mut tokenizer = tokenize(program);
 
     assert_eq!(tokenizer.next(), Ok(OpeningParenthesis));
     assert_eq!(tokenizer.next(), Ok(VarName("hello")));
+    assert_eq!(tokenizer.next(), Ok(Operator("-")));
     assert_eq!(tokenizer.next(), Ok(VarName("world")));
     assert_eq!(tokenizer.next(), Ok(ClosingParenthesis));
     assert_eq!(tokenizer.next(), Ok(EOF));
@@ -174,11 +184,12 @@ fn test_tokenize() {
 
 #[test]
 fn test_tokenize_numbers() {
-    let program = "1 234 5";
+    let program = "1 234 -5 6";
     let mut tokenizer = tokenize(program);
 
     assert_eq!(tokenizer.next(), Ok(Number("1")));
     assert_eq!(tokenizer.next(), Ok(Number("234")));
-    assert_eq!(tokenizer.next(), Ok(Number("5")));
+    assert_eq!(tokenizer.next(), Ok(Number("-5")));
+    assert_eq!(tokenizer.next(), Ok(Number("6")));
     assert_eq!(tokenizer.next(), Ok(EOF));
 }
