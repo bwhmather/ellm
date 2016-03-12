@@ -1,4 +1,5 @@
 use std::str::CharRange;
+use regex::Regex;
 
 pub use self::Token::*;
 
@@ -7,25 +8,37 @@ pub use self::Token::*;
 pub enum Token<'a> {
     TypeName(&'a str),
     VarName(&'a str),
+    Operator(&'a str),
+
+    String(&'a str),
     Number(&'a str),
+    Comma,
+
     OpeningParenthesis,
     ClosingParenthesis,
-    Comma,
-    Operator(&'a str),
+    Indentation(usize),
+
     EOF,
 }
 
 
-pub type TokenizerResult<'a> = Result<Token<'a>, &'static str>;
+type LexerResult<'a> = Result<Token<'a>, &'static str>;
 
 
-pub struct Tokenizer<'a> {
+struct Lexer<'a> {
     input: &'a str,
     cursor: usize,
 }
 
 
-impl<'a> Tokenizer<'a> {
+impl<'a> Lexer<'a> {
+    fn new(input : &'a str) -> Lexer<'a> {
+        Lexer{
+            input: input,
+            cursor: 0,
+        }
+    }
+
     fn consume_whitespace(&mut self) {
         loop {
             if self.input.len() == self.cursor {
@@ -44,7 +57,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    fn scan_varname(&mut self) -> TokenizerResult<'a> {
+    fn scan_varname(&mut self) -> LexerResult<'a> {
         let token_start = self.cursor;
 
         loop {
@@ -68,7 +81,7 @@ impl<'a> Tokenizer<'a> {
         Ok(VarName(&self.input[token_start..self.cursor]))
     }
 
-    fn scan_typename(&mut self) -> TokenizerResult<'a> {
+    fn scan_typename(&mut self) -> LexerResult<'a> {
         let token_start = self.cursor;
 
         loop {
@@ -92,7 +105,7 @@ impl<'a> Tokenizer<'a> {
         Ok(VarName(&self.input[token_start..self.cursor]))
     }
 
-    fn scan_number(&mut self) -> TokenizerResult<'a> {
+    fn scan_number(&mut self) -> LexerResult<'a> {
         let re = regex!(r"^-?[0-9]+");
 
         match re.find(&self.input[self.cursor..]) {
@@ -108,7 +121,7 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    pub fn next(&mut self) -> TokenizerResult<'a> {
+    pub fn next(&mut self) -> LexerResult<'a> {
         self.consume_whitespace();
 
         if self.input.len() == self.cursor {
@@ -160,36 +173,49 @@ impl<'a> Tokenizer<'a> {
 }
 
 
-pub fn tokenize(input: &str) -> Tokenizer {
-    Tokenizer{
-        input: input,
-        cursor: 0,
+pub fn lex(input: &str) -> Result<Vec<Token>, &'static str> {
+    let mut lexer = Lexer::new(input);
+    let mut output = Vec::new();
+
+    loop {
+        match lexer.next() {
+            Err(error) => {
+                return Err(error);
+            }
+            Ok(EOF) => {
+                output.push(EOF);
+                return Ok(output);
+            }
+            Ok(token) => {
+                output.push(token);
+            }
+        }
     }
 }
 
 
 #[test]
-fn test_tokenize() {
+fn test_lexer() {
     let program = "(hello - world)";
-    let mut tokenizer = tokenize(program);
+    let mut lexer = Lexer::new(program);
 
-    assert_eq!(tokenizer.next(), Ok(OpeningParenthesis));
-    assert_eq!(tokenizer.next(), Ok(VarName("hello")));
-    assert_eq!(tokenizer.next(), Ok(Operator("-")));
-    assert_eq!(tokenizer.next(), Ok(VarName("world")));
-    assert_eq!(tokenizer.next(), Ok(ClosingParenthesis));
-    assert_eq!(tokenizer.next(), Ok(EOF));
-    assert_eq!(tokenizer.next(), Ok(EOF));
+    assert_eq!(lexer.next(), Ok(OpeningParenthesis));
+    assert_eq!(lexer.next(), Ok(VarName("hello")));
+    assert_eq!(lexer.next(), Ok(Operator("-")));
+    assert_eq!(lexer.next(), Ok(VarName("world")));
+    assert_eq!(lexer.next(), Ok(ClosingParenthesis));
+    assert_eq!(lexer.next(), Ok(EOF));
+    assert_eq!(lexer.next(), Ok(EOF));
 }
 
 #[test]
-fn test_tokenize_numbers() {
+fn test_lexer_numbers() {
     let program = "1 234 -5 6";
-    let mut tokenizer = tokenize(program);
+    let mut lexer = Lexer::new(program);
 
-    assert_eq!(tokenizer.next(), Ok(Number("1")));
-    assert_eq!(tokenizer.next(), Ok(Number("234")));
-    assert_eq!(tokenizer.next(), Ok(Number("-5")));
-    assert_eq!(tokenizer.next(), Ok(Number("6")));
-    assert_eq!(tokenizer.next(), Ok(EOF));
+    assert_eq!(lexer.next(), Ok(Number("1")));
+    assert_eq!(lexer.next(), Ok(Number("234")));
+    assert_eq!(lexer.next(), Ok(Number("-5")));
+    assert_eq!(lexer.next(), Ok(Number("6")));
+    assert_eq!(lexer.next(), Ok(EOF));
 }
