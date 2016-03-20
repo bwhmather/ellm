@@ -1,6 +1,4 @@
 use std::str::CharRange;
-use std::str::CharIndices;
-use regex::Regex;
 
 pub use self::Token::*;
 
@@ -31,11 +29,13 @@ type LexerError = &'static str;
 type LexerResult<'a> = Result<Token<'a>, LexerError>;
 
 
+#[derive(Clone, Debug)]
 struct Lexer<'a> {
     input: &'a str,
     cursor: usize,
     row: usize,
     col: usize,
+    first_token: bool,
 }
 
 
@@ -46,6 +46,7 @@ impl<'a> Lexer<'a> {
             cursor: 0,
             col: 0,
             row: 0,
+            first_token: true,
         }
     }
 
@@ -62,7 +63,7 @@ impl<'a> Lexer<'a> {
             return None;
         }
 
-        let CharRange{ ch, next } = self.input.char_range_at(self.cursor);
+        let CharRange{ ch: _, next } = self.input.char_range_at(self.cursor);
 
         if self.input.len() == next {
             None
@@ -78,19 +79,10 @@ impl<'a> Lexer<'a> {
             self.row += 1;
             self.col = 0;
         } else {
-            self.col += 1
+            self.col += 1;
         }
 
         self.cursor = next;
-    }
-
-    fn consume_whitespace(&mut self) {
-        loop {
-            match self.peek_char() {
-                Some(' ') | Some('\n') => { self.pop_char(); },
-                _ => return,
-            }
-        }
     }
 
     fn scan_varname(&mut self) -> LexerResult<'a> {
@@ -128,6 +120,7 @@ impl<'a> Lexer<'a> {
 
         Ok(TypeName(&self.input[token_start..self.cursor]))
     }
+
     fn scan_operator(&mut self) -> LexerResult<'a> {
         // TODO operators can have more than one char
         let token_start = self.cursor;
@@ -162,7 +155,28 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next(&mut self) -> LexerResult<'a> {
-        self.consume_whitespace();
+        let mut newline = false;
+
+        if self.first_token {
+            newline = true;
+            self.first_token = false;
+        }
+
+        loop {
+            match self.peek_char() {
+                Some('\n') => {
+                    newline = true;
+                    self.pop_char();
+                }
+                Some(' ') => { self.pop_char(); }
+                _ => {
+                    if newline {
+                        return Ok(Indentation(self.col));
+                    }
+                    break;
+                }
+            }
+        }
 
         match self.peek_char() {
             None => Ok(EOF),
@@ -189,7 +203,7 @@ impl<'a> Lexer<'a> {
                     }
                 }
                 _ => {
-                    Err("")
+                    panic!("{:?}", self)
                 }
             }
         }
@@ -220,11 +234,12 @@ pub fn lex(input: &str) -> Result<Vec<Token>, &'static str> {
 
 #[test]
 fn test_lexer() {
-    let program = "(hello - world)";
+    let program = "(Hello - world)";
     let mut lexer = Lexer::new(program);
 
+    assert_eq!(lexer.next(), Ok(Indentation(0)));
     assert_eq!(lexer.next(), Ok(LParen));
-    assert_eq!(lexer.next(), Ok(VarName("hello")));
+    assert_eq!(lexer.next(), Ok(TypeName("Hello")));
     assert_eq!(lexer.next(), Ok(Operator("-")));
     assert_eq!(lexer.next(), Ok(VarName("world")));
     assert_eq!(lexer.next(), Ok(RParen));
@@ -232,14 +247,31 @@ fn test_lexer() {
     assert_eq!(lexer.next(), Ok(EOF));
 }
 
+
 #[test]
 fn test_lexer_numbers() {
     let program = "1 234 -5 6";
     let mut lexer = Lexer::new(program);
 
+    assert_eq!(lexer.next(), Ok(Indentation(0)));
     assert_eq!(lexer.next(), Ok(Number("1")));
     assert_eq!(lexer.next(), Ok(Number("234")));
     assert_eq!(lexer.next(), Ok(Number("-5")));
     assert_eq!(lexer.next(), Ok(Number("6")));
+    assert_eq!(lexer.next(), Ok(EOF));
+}
+
+
+#[test]
+fn test_lexer_indentation() {
+    let program = "    4    \n  2\n0";
+    let mut lexer = Lexer::new(program);
+
+    assert_eq!(lexer.next(), Ok(Indentation(4)));
+    assert_eq!(lexer.next(), Ok(Number("4")));
+    assert_eq!(lexer.next(), Ok(Indentation(2)));
+    assert_eq!(lexer.next(), Ok(Number("2")));
+    assert_eq!(lexer.next(), Ok(Indentation(0)));
+    assert_eq!(lexer.next(), Ok(Number("0")));
     assert_eq!(lexer.next(), Ok(EOF));
 }
