@@ -1,3 +1,5 @@
+use std::cmp::Ordering::{Less, Equal, Greater};
+
 pub use self::Token::*;
 
 
@@ -15,8 +17,8 @@ pub enum Token<'a> {
     RBracket,
     LParen,
     RParen,
-
-    Indentation(usize),
+    Indent,
+    Dedent,
 
     EOF,
 }
@@ -33,7 +35,8 @@ struct Lexer<'a> {
     cursor: usize,
     row: usize,
     col: usize,
-    first_token: bool,
+    newline: bool,
+    indent_stack: Vec<usize>,
 }
 
 
@@ -44,7 +47,8 @@ impl<'a> Lexer<'a> {
             cursor: 0,
             col: 0,
             row: 0,
-            first_token: true,
+            newline: true,
+            indent_stack: Vec::new(),
         }
     }
 
@@ -152,32 +156,71 @@ impl<'a> Lexer<'a> {
         Ok(Number(&self.input[token_start..self.cursor]))
     }
 
-    pub fn next(&mut self) -> LexerResult<'a> {
-        let mut newline = false;
-
-        if self.first_token {
-            newline = true;
-            self.first_token = false;
-        }
-
+    fn consume_whitespace(&mut self) {
         loop {
             match self.peek_char() {
-                Some('\n') => {
-                    newline = true;
+                Some(' ') => {
                     self.pop_char();
                 }
-                Some(' ') => { self.pop_char(); }
+                Some('\n') => {
+                    self.pop_char();
+                    self.newline = true;
+                }
                 _ => {
-                    if newline {
-                        return Ok(Indentation(self.col));
-                    }
                     break;
                 }
             }
         }
+    }
+
+    pub fn next(&mut self) -> LexerResult<'a> {
+        self.consume_whitespace();
+
+        if self.newline {
+            let old_indentation = if self.indent_stack.is_empty() {
+                0
+            } else {
+                self.indent_stack[self.indent_stack.len() - 1]
+            };
+
+            let new_indentation = self.col;
+
+            match new_indentation.cmp(&old_indentation) {
+                Less => {
+                    self.indent_stack.pop();
+
+                    // Check that the new indentation doesn't lie between two
+                    // outer indentations
+                    let next_indentation = if self.indent_stack.is_empty() {
+                        0
+                    } else {
+                        self.indent_stack[self.indent_stack.len() - 1]
+                    };
+                    if new_indentation > next_indentation {
+                        return Err("no matching indentation");
+                    }
+
+                    return Ok(Dedent);
+                }
+                Equal => {
+                    self.newline = false;
+                }
+                Greater => {
+                    self.indent_stack.push(new_indentation);
+                    self.newline = false;
+                    return Ok(Indent);
+                }
+           }
+        }
 
         match self.peek_char() {
-            None => Ok(EOF),
+            None => {
+                match self.indent_stack.pop() {
+                    Some(_) => Ok(Dedent),
+                    None => Ok(EOF),
+                }
+            }
+
             Some(ch) => match ch {
                 'a'...'z' => { self.scan_varname() }
                 'A'...'Z' => { self.scan_typename() }
@@ -235,13 +278,11 @@ fn test_lexer() {
     let program = "(Hello - world)";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Indentation(0)));
     assert_eq!(lexer.next(), Ok(LParen));
     assert_eq!(lexer.next(), Ok(TypeName("Hello")));
     assert_eq!(lexer.next(), Ok(Operator("-")));
     assert_eq!(lexer.next(), Ok(VarName("world")));
     assert_eq!(lexer.next(), Ok(RParen));
-    assert_eq!(lexer.next(), Ok(EOF));
     assert_eq!(lexer.next(), Ok(EOF));
 }
 
@@ -251,7 +292,6 @@ fn test_lexer_numbers() {
     let program = "1 234 -5 6";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Indentation(0)));
     assert_eq!(lexer.next(), Ok(Number("1")));
     assert_eq!(lexer.next(), Ok(Number("234")));
     assert_eq!(lexer.next(), Ok(Number("-5")));
@@ -262,14 +302,17 @@ fn test_lexer_numbers() {
 
 #[test]
 fn test_lexer_indentation() {
-    let program = "    4    \n  2\n0";
+    let program = "0\n  2\n  2\n    4\n  2";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Indentation(4)));
-    assert_eq!(lexer.next(), Ok(Number("4")));
-    assert_eq!(lexer.next(), Ok(Indentation(2)));
-    assert_eq!(lexer.next(), Ok(Number("2")));
-    assert_eq!(lexer.next(), Ok(Indentation(0)));
     assert_eq!(lexer.next(), Ok(Number("0")));
+    assert_eq!(lexer.next(), Ok(Indent));
+    assert_eq!(lexer.next(), Ok(Number("2")));
+    assert_eq!(lexer.next(), Ok(Number("2")));
+    assert_eq!(lexer.next(), Ok(Indent));
+    assert_eq!(lexer.next(), Ok(Number("4")));
+    assert_eq!(lexer.next(), Ok(Dedent));
+    assert_eq!(lexer.next(), Ok(Number("2")));
+    assert_eq!(lexer.next(), Ok(Dedent));
     assert_eq!(lexer.next(), Ok(EOF));
 }
