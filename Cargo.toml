@@ -3,7 +3,8 @@ name = "ellm"
 version = "0.1.0"
 authors = ["Ben Mather <bwhmather@bwhmather.com>"]
 
+[lib]
+doctest = false
+
 [dependencies]
 regex = "0.1"
-regex_macros = "0.1"
-combine = "*"

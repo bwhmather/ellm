@@ -1,5 +1,3 @@
-use std::str::CharRange;
-
 pub use self::Token::*;
 
 
@@ -54,7 +52,7 @@ impl<'a> Lexer<'a> {
         if self.input.len() == self.cursor {
             None
         } else {
-            Some(self.input.char_at(self.cursor))
+            self.input[self.cursor..].chars().next()
         }
     }
 
@@ -63,17 +61,17 @@ impl<'a> Lexer<'a> {
             return None;
         }
 
-        let CharRange{ ch: _, next } = self.input.char_range_at(self.cursor);
-
-        if self.input.len() == next {
-            None
-        } else {
-            Some(self.input.char_at(next))
-        }
+        let mut chars = self.input[self.cursor..].chars();
+        chars.next();
+        chars.next()
     }
 
     fn pop_char(&mut self) {
-        let CharRange{ ch, next } = self.input.char_range_at(self.cursor);
+        if self.input.len() <= self.cursor {
+            return;
+        }
+
+        let ch = self.input[self.cursor..].chars().next().unwrap();
 
         if ch == '\n' {
             self.row += 1;
@@ -82,7 +80,7 @@ impl<'a> Lexer<'a> {
             self.col += 1;
         }
 
-        self.cursor = next;
+        self.cursor += ch.len_utf8();
     }
 
     fn scan_varname(&mut self) -> LexerResult<'a> {
