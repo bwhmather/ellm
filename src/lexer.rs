@@ -230,7 +230,8 @@ impl<'a> Lexer<'a> {
                 ']' => { self.pop_char(); Ok(RBracket) }
                 '(' => { self.pop_char(); Ok(LParen) }
                 ')' => { self.pop_char(); Ok(RParen) }
-                '-' => {
+                ',' => { self.pop_char(); Ok(Comma) }
+                '-' | '=' => {
                     match self.lookahead_char() {
                         // Some('0'...'9') => { self.scan_number() }
                         Some(ch) => {
