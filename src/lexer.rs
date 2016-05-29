@@ -317,3 +317,41 @@ fn test_lexer_indentation() {
     assert_eq!(lexer.next(), Ok(Dedent));
     assert_eq!(lexer.next(), Ok(EOF));
 }
+
+
+#[test]
+fn test_python_style_list() {
+    let program = "a = [\n  1,\n  2,\n]";
+    let mut lexer = Lexer::new(program);
+
+    assert_eq!(lexer.next(), Ok(VarName("a")));
+    assert_eq!(lexer.next(), Ok(Operator("=")));
+    assert_eq!(lexer.next(), Ok(LBracket));
+    assert_eq!(lexer.next(), Ok(Indent));
+    assert_eq!(lexer.next(), Ok(Number("1")));
+    assert_eq!(lexer.next(), Ok(Comma));
+    assert_eq!(lexer.next(), Ok(Number("2")));
+    assert_eq!(lexer.next(), Ok(Comma));
+    assert_eq!(lexer.next(), Ok(Dedent));
+    assert_eq!(lexer.next(), Ok(RBracket));
+    assert_eq!(lexer.next(), Ok(EOF));
+}
+
+
+#[test]
+fn test_haskell_style_list() {
+    let program = "a =\n  [ 1\n  , 2\n  ]";
+    let mut lexer = Lexer::new(program);
+
+    assert_eq!(lexer.next(), Ok(VarName("a")));
+    assert_eq!(lexer.next(), Ok(Operator("=")));
+    assert_eq!(lexer.next(), Ok(Indent));
+    assert_eq!(lexer.next(), Ok(LBracket));
+    assert_eq!(lexer.next(), Ok(Number("1")));
+    assert_eq!(lexer.next(), Ok(Comma));
+    assert_eq!(lexer.next(), Ok(Number("2")));
+    assert_eq!(lexer.next(), Ok(RBracket));
+    assert_eq!(lexer.next(), Ok(Dedent));
+    assert_eq!(lexer.next(), Ok(EOF));
+
+}
