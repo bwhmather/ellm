@@ -1,0 +1,134 @@
+
+
+
+Grammar
+=======
+
+Terminals default to an indentation relation of $>$ where non-terminals default to $=$.
+This is because we don't want to gain a space of indentation for each layer of nesting.
+As most expressions will only be made up of terminals with greater indentation they are, in effect, indented.
+
+
+Patterns
+
+    pattern -> recordPattern -- TODO
+    pattern -> tuplePattern
+    pattern -> typeName pattern -- TODO
+    pattern -> varName
+    pattern -> pattern^{=} "@"^{>} varName^{=}
+
+
+Literals
+
+    literal ->
+
+Lists
+
+    -- TODO confirm that this does actually work as an LR grammar
+    list -> "["^{>} "]"^{>}
+    list -> "["^{>} listBody^{*} "]"^{>}
+    list -> "["^{>} listBody^{*} ","^{*} "]"^{?}
+
+    listBody -> expr listEntries
+    listEntries -> listEntry
+    listEntries -> listEntries listEntry
+    listEntry -> "," expr
+
+    listEntry -> expr^{=}{*} ","
+
+Records
+
+    -- TODO
+    record -> "("^{>} expr^{*} ")"^{?}
+    recordUpdate -> -- TODO
+
+Simple expressions
+
+    expr -> literal^{>}
+    expr -> list^{=}
+    expr -> record^{=}
+    expr -> recordUpdate^{=}
+    expr -> call^{=}
+    expr -> varName^{>}
+
+Case expressions
+
+    case -> "case"^{>} expr^{=} "of"^{>} caseBody^{=}
+
+    caseBody -> caseAlternatives(>)
+
+    -- caseAlternatives is strictly left-aligned
+    caseAlternatives -> caseAlternatives^{=} |caseAlternative|^{=}
+    caseAlternatives -> |caseAlternative|^{=}
+
+    caseAlternative -> |pattern|^{=} "=>"^{?} expr^{=}
+
+
+Let expressions
+
+    let -> "let"^{>} letBody^{=} "in"^{>} expr^{=}
+
+    letBody -> letAssignments^{>}
+
+    -- letAssignments is strictly left-aligned
+    letAssignments -> letAssignments^{=} |letAssignment|^{=}
+    letAssignments -> |letAssignment|^{=}
+
+    -- TODO this should be the same as a regular definition
+    letAssignment -> |varName|^{=} "="^{>} expr^{=}
+
+
+Types
+
+    -- TODO confirm that this does actually work as an LR grammar
+    recordType -> "{"^{>} "}"^{>}
+    recordType -> "{"^{>} recordTypeBody^{*} "}"^{>}
+    recordType -> "{"^{>} recordTypeBody^{*} ","^{*} "}"^{?}
+
+    -- TODO should it be possible to derive a record type from another concrete
+    -- type
+    derivedRecordType -> "{"^{>} varName "|" recordTypeBody^{*} "}"^{>}
+    derivedRecordType -> "{"^{>} varName "|" recordTypeBody^{*} ","^{*} "}"^{?}
+
+    recordTypeBody -> expr recordTypeEntries
+    recordTypeEntries -> recordTypeEntry
+    recordTypeEntries -> recordTypeEntries recordEntry
+    recordTypeEntry -> "," varName ":" type
+
+
+    type -> type^{=} "->"^{>} type^{=}
+    type -> recordType
+    type -> typeName^{>}
+
+
+Type alias declarations
+
+    typeAlias = "type"^{=} "alias"^{>} typeName^{>} "="^{=} = type^{=}
+
+
+Union type declarations
+
+
+    -- TODO
+    unionDecl -> "type" typeName "="
+    unionAlternatives
+
+
+Top level bindings
+
+    -- TODO
+    product -> typeName^{>=} | typeName^{>=} "->"^{>} product^{>=}
+    type -> product^{>}
+    prototype -> typeName^{=} : type^{>}
+
+    -- TODO ports/signals/some other io mechanism
+
+Imports
+  -- TODO
+
+
+Modules
+
+    -- TODO
+
+http://michaeldadams.org/papers/layout_parsing/LayoutParsing.pdf
