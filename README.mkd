@@ -132,3 +132,25 @@ Modules
     -- TODO
 
 http://michaeldadams.org/papers/layout_parsing/LayoutParsing.pdf
+
+
+
+
+Garbage collection
+==================
+
+Objects are strictly immutable so can only reference other objects further down the heap.
+
+Allocation is done by incrementing a pointer.
+
+Garbage collection occurs only between events.
+The saved state serves as the root.
+Unsure if the output should also be used as a root or if collection should just happen after it has been consumed.
+
+Pointers to visible objects should be inserted into a max heap (a normal binary heap mapped to an array makes most sense as pointers should get steadily smaller).
+
+Objects for the GC to visit should be read from the heap in turn.  The pointers to those objects should be saved to a stack.
+
+Once the whole heap has been traversed, iterate over the stack and copy corresponding the objects to the new heap.
+Using the stack instead of copying immediately will ensure that object remain in the right order.
+Objects should be replaced with pointers to the new location so that references can be fixed
