@@ -11,36 +11,78 @@ As most expressions will only be made up of terminals with greater indentation t
 
 Patterns
 
+    pattern -> varName
+    pattern -> "_"^{>}
+    pattern -> varName^{>} "@"^{>} pattern^{=}
     pattern -> recordPattern -- TODO
     pattern -> tuplePattern
     pattern -> typeName pattern -- TODO
-    pattern -> varName
-    pattern -> pattern^{=} "@"^{>} varName^{=}
+
+
+Keywords
+
+    "type" | "alias" | "port" |
+    "module" | "exposing" |
+    "let" | "in" |
+    "case" | "of" |
+    "where" |
+    "_" |
+    ":" | "->"
+
+
+Identifiers
+
+    varName -> "[a-z][a-zA-Z0-9']*"^{=}
+    varName -> "(" operator ")"
+    typeName -> "[A-Z][a-zA-Z0-9']*"^{=}
+    operator -> TODO
 
 
 Literals
 
-    literal ->
+    -- literals all have no implicit $>$
+    literal -> ieee double precision floating point
+    literal -> signed, arbitrary precision integer
+    literal -> string literal
+    literal -> char literal
+
 
 Lists
 
-    -- TODO confirm that this does actually work as an LR grammar
     list -> "["^{>} "]"^{>}
     list -> "["^{>} listBody^{*} "]"^{>}
     list -> "["^{>} listBody^{*} ","^{*} "]"^{?}
 
-    listBody -> expr listEntries
-    listEntries -> listEntry
-    listEntries -> listEntries listEntry
+    listBody -> listEntry
+    listBody -> listBody listEntry
+
     listEntry -> "," expr
 
-    listEntry -> expr^{=}{*} ","
+Tuples
+
+    tuple -> "("^{>} tupleBody^{*} ")"^{>}
+    tuple -> "("^{>} tupleBody^{*} ","^{*} ")"^{>}
+
+    tupleBody -> tupleEntry
+    tupleBody -> tupleBody tupleEntry
+
+    tupleEntry -> "," expr
 
 Records
 
     -- TODO
-    record -> "("^{>} expr^{*} ")"^{?}
-    recordUpdate -> -- TODO
+    record -> "{"^{>} "}"^{>}
+    record -> "{"^{>} recordBody^{*} "}"^{>}
+    record -> "{"^{>} recordBody^{*} ","^{*} "}"^{?}
+
+    recordUpdate -> "{"^{>} type "|" recordBody^{*} "}"^{>}
+    recordUpdate -> "{"^{>} type "|" recordBody^{*} ","^{*} "}"^{?}
+
+    recordBody -> recordEntry
+    recordBody -> recordBody recordEntry
+
+    recordEntry -> "," varName ":" type
+
 
 Simple expressions
 
@@ -48,8 +90,13 @@ Simple expressions
     expr -> list^{=}
     expr -> record^{=}
     expr -> recordUpdate^{=}
-    expr -> call^{=}
+    -- Function calls.  This will be applied repeatedly to eat up all arguments
+    expr -> expr^{=} expr^{=}
     expr -> varName^{>}
+    expr -> "("^{>} expr^{*} ")"^{>}
+
+    -- TODO operators and precedence
+
 
 Case expressions
 
@@ -70,69 +117,80 @@ Let expressions
 
     letBody -> letAssignments^{>}
 
-    -- letAssignments is strictly left-aligned
+    -- letAssignments are strictly left-aligned
     letAssignments -> letAssignments^{=} |letAssignment|^{=}
     letAssignments -> |letAssignment|^{=}
 
     -- TODO this should be the same as a regular definition
+    -- TODO type variables?
     letAssignment -> |varName|^{=} "="^{>} expr^{=}
 
 
 Types
 
-    -- TODO confirm that this does actually work as an LR grammar
+    -- TODO do we need to make a distinction between potentially parameterized
+    -- and concrete types in the parser (I suspect no)
     recordType -> "{"^{>} "}"^{>}
     recordType -> "{"^{>} recordTypeBody^{*} "}"^{>}
     recordType -> "{"^{>} recordTypeBody^{*} ","^{*} "}"^{?}
 
-    -- TODO should it be possible to derive a record type from another concrete
-    -- type
-    derivedRecordType -> "{"^{>} varName "|" recordTypeBody^{*} "}"^{>}
-    derivedRecordType -> "{"^{>} varName "|" recordTypeBody^{*} ","^{*} "}"^{?}
+    derivedRecordType -> "{"^{>} type "|" recordTypeBody^{*} "}"^{>}
+    derivedRecordType -> "{"^{>} type "|" recordTypeBody^{*} ","^{*} "}"^{?}
 
-    recordTypeBody -> expr recordTypeEntries
-    recordTypeEntries -> recordTypeEntry
-    recordTypeEntries -> recordTypeEntries recordEntry
+    recordTypeBody -> recordTypeEntry
+    recordTypeBody -> recordTypeBody recordTypeEntry
+
     recordTypeEntry -> "," varName ":" type
-
 
     type -> type^{=} "->"^{>} type^{=}
     type -> recordType
+    type -> derivedRecordType
     type -> typeName^{>}
+    type -> varName
 
 
 Type alias declarations
 
-    typeAlias = "type"^{=} "alias"^{>} typeName^{>} "="^{=} = type^{=}
+    typeParameters -> varName
+    typeParameters -> typeParameters varName
+
+    typeAlias = "type"^{=} "alias"^{>} typeName^{>} "="^{>} type^{=}
+    typeAlias = "type"^{=} "alias"^{>} typeName^{>} typeParameters^{=} "="^{>} type^{=}
 
 
 Union type declarations
 
-
     -- TODO
-    unionDecl -> "type" typeName "="
-    unionAlternatives
+    unionDecl -> "type" typeName "=" unionAlternatives
+    unionDecl -> "type" typeName typeParameters "=" unionAlternatives
+
+    unionAlternatives ->
 
 
 Top level bindings
 
-    -- TODO
-    product -> typeName^{>=} | typeName^{>=} "->"^{>} product^{>=}
-    type -> product^{>}
-    prototype -> typeName^{=} : type^{>}
+    typeDeclaration -> varName^{=} ":"^{>} type^{=}
+
+    definition -> varName^{=} "="^{>} expr^{=}
+    definition -> varName parameters "=" expr
+    
+    parameters -> pattern
+    parameters -> parameters pattern
 
     -- TODO ports/signals/some other io mechanism
 
+
 Imports
-  -- TODO
+
+    -- TODO
 
 
 Modules
 
     -- TODO
 
-http://michaeldadams.org/papers/layout_parsing/LayoutParsing.pdf
 
+http://michaeldadams.org/papers/layout_parsing/LayoutParsing.pdf
 
 
 
