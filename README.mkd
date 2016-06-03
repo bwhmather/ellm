@@ -1,12 +1,57 @@
 
+Parsing
+=======
+Lexical structure
+-----------------
+
+For the sake of parsing, tokens are a tuple of a source column and an identifier.
+
+Tokens should hold a slice pointing to the section of string from which they were extracted that can be used by the parser.
+
+
+Keywords
+
+    keyword -> "type" | "alias" | "port"
+    keyword -> "module" | "exposing"
+    keyword -> "where"
+    keyword -> "let" | "in"
+    keyword -> "case" | "of"
+
+    colon -> ":"
+    rightArrow -> "->"
+    underscore -> "_"
+    at -> "@"
+    equals -> "="
+    lBracket -> "{"
+    rBracket -> "}"
+    lParen -> "("
+    rParen -> ")"
+    comma -> ","
+
+
+Identifiers
+
+    varName -> "[a-z][a-zA-Z0-9']*"
+    varName -> "(" operator ")"
+    typeName -> "[A-Z][a-zA-Z0-9']*"
+    operator -> TODO
+
+
+Literals (TODO)
+
+    literal -> ieee double precision floating point
+    literal -> signed, arbitrary precision integer
+    literal -> string literal
+    literal -> char literal
 
 
 Grammar
-=======
-
+-------
 Terminals default to an indentation relation of $>$ where non-terminals default to $=$.
 This is because we don't want to gain a space of indentation for each layer of nesting.
 As most expressions will only be made up of terminals with greater indentation they are, in effect, indented.
+
+
 
 
 Patterns
@@ -17,34 +62,6 @@ Patterns
     pattern -> recordPattern -- TODO
     pattern -> tuplePattern
     pattern -> typeName pattern -- TODO
-
-
-Keywords
-
-    "type" | "alias" | "port" |
-    "module" | "exposing" |
-    "let" | "in" |
-    "case" | "of" |
-    "where" |
-    "_" |
-    ":" | "->"
-
-
-Identifiers
-
-    varName -> "[a-z][a-zA-Z0-9']*"^{=}
-    varName -> "(" operator ")"
-    typeName -> "[A-Z][a-zA-Z0-9']*"^{=}
-    operator -> TODO
-
-
-Literals
-
-    -- literals all have no implicit $>$
-    literal -> ieee double precision floating point
-    literal -> signed, arbitrary precision integer
-    literal -> string literal
-    literal -> char literal
 
 
 Lists
