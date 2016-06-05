@@ -17,9 +17,6 @@ pub enum Token<'a> {
     RBracket,
     LParen,
     RParen,
-    Indent,
-    Break,
-    Dedent,
 
     EOF,
 }
@@ -160,12 +157,8 @@ impl<'a> Lexer<'a> {
     fn consume_whitespace(&mut self) {
         loop {
             match self.peek_char() {
-                Some(' ') => {
+                Some(' ') | Some('\n') => {
                     self.pop_char();
-                }
-                Some('\n') => {
-                    self.pop_char();
-                    self.newline = true;
                 }
                 _ => {
                     break;
@@ -177,52 +170,8 @@ impl<'a> Lexer<'a> {
     pub fn next(&mut self) -> LexerResult<'a> {
         self.consume_whitespace();
 
-        if self.newline {
-            let old_indentation = if self.indent_stack.is_empty() {
-                0
-            } else {
-                self.indent_stack[self.indent_stack.len() - 1]
-            };
-
-            let new_indentation = self.col;
-
-            match new_indentation.cmp(&old_indentation) {
-                Less => {
-                    self.indent_stack.pop();
-
-                    // Check that the new indentation doesn't lie between two
-                    // outer indentations
-                    let next_indentation = if self.indent_stack.is_empty() {
-                        0
-                    } else {
-                        self.indent_stack[self.indent_stack.len() - 1]
-                    };
-                    if new_indentation > next_indentation {
-                        return Err("no matching indentation");
-                    }
-
-                    return Ok(Dedent);
-                }
-                Equal => {
-                    self.newline = false;
-                    return Ok(Break);
-                }
-                Greater => {
-                    self.indent_stack.push(new_indentation);
-                    self.newline = false;
-                    return Ok(Indent);
-                }
-           }
-        }
-
         match self.peek_char() {
-            None => {
-                match self.indent_stack.pop() {
-                    Some(_) => Ok(Dedent),
-                    None => Ok(EOF),
-                }
-            }
-
+            None => Ok(EOF),
             Some(ch) => match ch {
                 'a'...'z' => { self.scan_varname() }
                 'A'...'Z' => { self.scan_typename() }
@@ -281,7 +230,6 @@ fn test_lexer() {
     let program = "(Hello - world)";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(LParen));
     assert_eq!(lexer.next(), Ok(TypeName("Hello")));
     assert_eq!(lexer.next(), Ok(Operator("-")));
@@ -296,7 +244,6 @@ fn test_lexer_numbers() {
     let program = "1 234 -5 6";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(Number("1")));
     assert_eq!(lexer.next(), Ok(Number("234")));
     assert_eq!(lexer.next(), Ok(Number("-5")));
@@ -310,21 +257,12 @@ fn test_lexer_indentation() {
     let program = "0\n  2\n  2\n    4\n      6\n  2";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(Number("0")));
-    assert_eq!(lexer.next(), Ok(Indent));
     assert_eq!(lexer.next(), Ok(Number("2")));
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(Number("2")));
-    assert_eq!(lexer.next(), Ok(Indent));
     assert_eq!(lexer.next(), Ok(Number("4")));
-    assert_eq!(lexer.next(), Ok(Indent));
     assert_eq!(lexer.next(), Ok(Number("6")));
-    assert_eq!(lexer.next(), Ok(Dedent));
-    assert_eq!(lexer.next(), Ok(Dedent));
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(Number("2")));
-    assert_eq!(lexer.next(), Ok(Dedent));
     assert_eq!(lexer.next(), Ok(EOF));
 }
 
@@ -334,18 +272,13 @@ fn test_python_style_list() {
     let program = "a = [\n  1,\n  2,\n]";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(VarName("a")));
     assert_eq!(lexer.next(), Ok(Operator("=")));
     assert_eq!(lexer.next(), Ok(LBracket));
-    assert_eq!(lexer.next(), Ok(Indent));
     assert_eq!(lexer.next(), Ok(Number("1")));
     assert_eq!(lexer.next(), Ok(Comma));
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(Number("2")));
     assert_eq!(lexer.next(), Ok(Comma));
-    assert_eq!(lexer.next(), Ok(Dedent));
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(RBracket));
     assert_eq!(lexer.next(), Ok(EOF));
 }
@@ -356,18 +289,12 @@ fn test_haskell_style_list() {
     let program = "a =\n  [ 1\n  , 2\n  ]";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(VarName("a")));
     assert_eq!(lexer.next(), Ok(Operator("=")));
-    assert_eq!(lexer.next(), Ok(Indent));
     assert_eq!(lexer.next(), Ok(LBracket));
     assert_eq!(lexer.next(), Ok(Number("1")));
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(Comma));
     assert_eq!(lexer.next(), Ok(Number("2")));
-    assert_eq!(lexer.next(), Ok(Break));
     assert_eq!(lexer.next(), Ok(RBracket));
-    assert_eq!(lexer.next(), Ok(Dedent));
     assert_eq!(lexer.next(), Ok(EOF));
-
 }
