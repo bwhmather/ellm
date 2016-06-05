@@ -5,18 +5,35 @@ pub use self::Token::*;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Token {
+    LBracket,
+    RBracket,
+    LParen,
+    RParen,
+
+    Colon,
+    RightArrow,
+    Underscore,
+    At,
+    Equals,
+    Comma,
+
+    Type,
+    Alias,
+    Port,
+    Module,
+    Exposing,
+    Where,
+    Let,
+    In,
+    Case,
+    Of,
+
     TypeName,
     VarName,
     Operator,
 
     String,
     Number,
-    Comma,
-
-    LBracket,
-    RBracket,
-    LParen,
-    RParen,
 
     EOF,
 }
@@ -100,7 +117,21 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        self.end_token(VarName)
+        let token = match &self.input[self.token_start..self.cursor] {
+            "type" => Type,
+            "alias" => Alias,
+            "port" => Port,
+            "module" => Module,
+            "exposing" => Exposing,
+            "where" => Where,
+            "let" => Let,
+            "in" => In,
+            "case" => Case,
+            "of" => Of,
+            _ => VarName,
+        };
+
+        self.end_token(token)
     }
 
     fn scan_typename(&mut self) -> LexerResult<'a> {
@@ -196,11 +227,19 @@ impl<'a> Lexer<'a> {
                 '(' => { self.pop_char(); self.end_token(LParen) }
                 ')' => { self.pop_char(); self.end_token(RParen) }
                 ',' => { self.pop_char(); self.end_token(Comma) }
-                '-' | '=' => {
+                ':' => { self.pop_char(); self.end_token(Colon) }
+                '_' => { self.pop_char(); self.end_token(Underscore) }
+                '@' => { self.pop_char(); self.end_token(At) }
+                '=' => { self.pop_char(); self.end_token(Equals) }
+                '-' => {
                     match self.lookahead_char() {
                         // Some('0'...'9') => { self.scan_number() }
                         Some(ch) => {
                             match ch {
+                                '>' => {
+                                    self.pop_char(); self.pop_char();
+                                    self.end_token(RightArrow)
+                                }
                                 '0'...'9' => { self.scan_number() }
                                 _ => { self.scan_operator() }
                             }
@@ -287,7 +326,7 @@ fn test_python_style_list() {
     let mut lexer = Lexer::new(program);
 
     assert_eq!(lexer.next(), Ok((0, VarName, "a")));
-    assert_eq!(lexer.next(), Ok((2, Operator, "=")));
+    assert_eq!(lexer.next(), Ok((2, Equals, "=")));
     assert_eq!(lexer.next(), Ok((4, LBracket, "[")));
     assert_eq!(lexer.next(), Ok((2, Number, "1")));
     assert_eq!(lexer.next(), Ok((3, Comma, ",")));
@@ -304,7 +343,7 @@ fn test_haskell_style_list() {
     let mut lexer = Lexer::new(program);
 
     assert_eq!(lexer.next(), Ok((0, VarName, "a")));
-    assert_eq!(lexer.next(), Ok((2, Operator, "=")));
+    assert_eq!(lexer.next(), Ok((2, Equals, "=")));
     assert_eq!(lexer.next(), Ok((2, LBracket, "[")));
     assert_eq!(lexer.next(), Ok((4, Number, "1")));
     assert_eq!(lexer.next(), Ok((2, Comma, ",")));
