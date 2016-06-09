@@ -27,6 +27,9 @@ pub enum Token {
     In,
     Case,
     Of,
+    If,
+    Then,
+    Else,
 
     TypeName,
     VarName,
@@ -128,6 +131,9 @@ impl<'a> Lexer<'a> {
             "in" => In,
             "case" => Case,
             "of" => Of,
+            "if" => If,
+            "then" => Then,
+            "else" => Else,
             _ => VarName,
         };
 
@@ -222,15 +228,15 @@ impl<'a> Lexer<'a> {
                 'A'...'Z' => { self.scan_typename() }
                 '0'...'9' => { self.scan_number() }
 
-                '[' => { self.pop_char(); self.end_token(LBracket) }
-                ']' => { self.pop_char(); self.end_token(RBracket) }
-                '(' => { self.pop_char(); self.end_token(LParen) }
-                ')' => { self.pop_char(); self.end_token(RParen) }
-                ',' => { self.pop_char(); self.end_token(Comma) }
-                ':' => { self.pop_char(); self.end_token(Colon) }
-                '_' => { self.pop_char(); self.end_token(Underscore) }
-                '@' => { self.pop_char(); self.end_token(At) }
-                '=' => { self.pop_char(); self.end_token(Equals) }
+                '[' => { self.pop_char(); Ok(LBracket, self.indentation) }
+                ']' => { self.pop_char(); Ok(RBracket, self.indentation) }
+                '(' => { self.pop_char(); Ok(LParen, self.indentation) }
+                ')' => { self.pop_char(); Ok(RParen, self.indentation) }
+                ',' => { self.pop_char(); Ok(Comma, self.indentation) }
+                ':' => { self.pop_char(); Ok(Colon, self.indentation) }
+                '_' => { self.pop_char(); Ok(Underscore, self.indentation) }
+                '@' => { self.pop_char(); Ok(At, self.indentation) }
+                '=' => { self.pop_char(); Ok(Equals, self.indentation) }
                 '-' => {
                     match self.lookahead_char() {
                         // Some('0'...'9') => { self.scan_number() }
