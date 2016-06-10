@@ -4,7 +4,7 @@ pub use self::Token::*;
 
 
 #[derive(PartialEq, Clone, Debug)]
-pub enum Token {
+pub enum Token<'a> {
     LBracket,
     RBracket,
     LParen,
@@ -31,12 +31,12 @@ pub enum Token {
     Then,
     Else,
 
-    TypeName,
-    VarName,
-    Operator,
+    TypeName(&'a str),
+    VarName(&'a str),
+    Operator(&'a str),
 
-    String,
-    Number,
+    String(&'a str),
+    Number(&'a str),
 
     EOF,
 }
@@ -44,14 +44,14 @@ pub enum Token {
 
 type LexerError = &'static str;
 
-type LexerResult<'a> = Result<(usize, Token, &'a str), LexerError>;
+type LexerResult<'a> = Result<(Token<'a>, usize), LexerError>;
 
 
 #[derive(Clone, Debug)]
 struct Lexer<'a> {
     input: &'a str,
     token_start: usize,
-    indentation: usize,
+    indent: usize,
     cursor: usize,
     row: usize,
     col: usize,
@@ -63,7 +63,7 @@ impl<'a> Lexer<'a> {
         Lexer{
             input: input,
             token_start: 0,
-            indentation: 0,
+            indent: 0,
             cursor: 0,
             col: 0,
             row: 0,
@@ -120,7 +120,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        let token = match &self.input[self.token_start..self.cursor] {
+        let token = match &self.input[token_start..self.cursor] {
             "type" => Type,
             "alias" => Alias,
             "port" => Port,
@@ -134,10 +134,10 @@ impl<'a> Lexer<'a> {
             "if" => If,
             "then" => Then,
             "else" => Else,
-            _ => VarName,
+            _ => VarName(&self.input[token_start..self.cursor]),
         };
 
-        self.end_token(token)
+        Ok((token, self.indent))
     }
 
     fn scan_typename(&mut self) -> LexerResult<'a> {
@@ -155,7 +155,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        self.end_token(TypeName)
+        Ok((TypeName(&self.input[token_start..self.cursor]), self.indent))
     }
 
     fn scan_operator(&mut self) -> LexerResult<'a> {
@@ -163,7 +163,7 @@ impl<'a> Lexer<'a> {
         let token_start = self.cursor;
         self.pop_char();
 
-        self.end_token(Operator)
+        Ok((Operator(&self.input[token_start..self.cursor]), self.indent))
     }
 
     fn scan_number(&mut self) -> LexerResult<'a> {
@@ -188,7 +188,7 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        self.end_token(Number)
+        Ok((Number(&self.input[token_start..self.cursor]), self.indent))
     }
 
     fn consume_whitespace(&mut self) {
@@ -204,54 +204,78 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn start_token(&mut self) {
-        self.token_start = self.cursor;
-        self.indentation = self.col;
-    }
-
-    fn end_token(&self, token: Token) -> LexerResult<'a> {
-        Ok((
-            self.indentation,
-            token,
-            &self.input[self.token_start..self.cursor]
-        ))
-    }
-
     pub fn next(&mut self) -> LexerResult<'a> {
         self.consume_whitespace();
-        self.start_token();
+
+        self.indent = self.col;
 
         match self.peek_char() {
-            None => self.end_token(EOF),
+            None => Ok((EOF, self.indent)),
             Some(ch) => match ch {
-                'a'...'z' => { self.scan_varname() }
-                'A'...'Z' => { self.scan_typename() }
-                '0'...'9' => { self.scan_number() }
-
-                '[' => { self.pop_char(); Ok(LBracket, self.indentation) }
-                ']' => { self.pop_char(); Ok(RBracket, self.indentation) }
-                '(' => { self.pop_char(); Ok(LParen, self.indentation) }
-                ')' => { self.pop_char(); Ok(RParen, self.indentation) }
-                ',' => { self.pop_char(); Ok(Comma, self.indentation) }
-                ':' => { self.pop_char(); Ok(Colon, self.indentation) }
-                '_' => { self.pop_char(); Ok(Underscore, self.indentation) }
-                '@' => { self.pop_char(); Ok(At, self.indentation) }
-                '=' => { self.pop_char(); Ok(Equals, self.indentation) }
+                'a'...'z' => {
+                    self.scan_varname()
+                }
+                'A'...'Z' => {
+                    self.scan_typename()
+                }
+                '0'...'9' => {
+                    self.scan_number()
+                }
+                '[' => {
+                    self.pop_char();
+                    Ok((LBracket, self.indent))
+                }
+                ']' => {
+                    self.pop_char();
+                    Ok((RBracket, self.indent))
+                }
+                '(' => {
+                    self.pop_char();
+                    Ok((LParen, self.indent))
+                }
+                ')' => {
+                    self.pop_char();
+                    Ok((RParen, self.indent))
+                }
+                ',' => {
+                    self.pop_char();
+                    Ok((Comma, self.indent))
+                }
+                ':' => {
+                    self.pop_char();
+                    Ok((Colon, self.indent))
+                }
+                '_' => {
+                    self.pop_char();
+                    Ok((Underscore, self.indent))
+                }
+                '@' => {
+                    self.pop_char();
+                    Ok((At, self.indent))
+                }
+                '=' => {
+                    self.pop_char();
+                    Ok((Equals, self.indent))
+                }
                 '-' => {
                     match self.lookahead_char() {
-                        // Some('0'...'9') => { self.scan_number() }
-                        Some(ch) => {
-                            match ch {
-                                '>' => {
-                                    self.pop_char(); self.pop_char();
-                                    self.end_token(RightArrow)
-                                }
-                                '0'...'9' => { self.scan_number() }
-                                _ => { self.scan_operator() }
-                            }
+                        Some('>') => {
+                            self.pop_char(); self.pop_char();
+                            Ok((RightArrow, self.indent))
                         }
-
-                        _ => { self.scan_operator() }
+                        Some(' ') | Some('\n') => {
+                            let token_start = self.cursor;
+                            self.pop_char();
+                            Ok((Operator(
+                                &self.input[token_start..self.cursor]
+                            ), self.indent))
+                        }
+                        Some('0'...'9') => {
+                            self.scan_number()
+                        }
+                        _ => {
+                            Err("unhandled character following '-'")
+                        }
                     }
                 }
                 _ => {
@@ -263,7 +287,7 @@ impl<'a> Lexer<'a> {
 }
 
 
-pub fn lex(input: &str) -> Result<Vec<(usize, Token, &str)>, &'static str> {
+pub fn lex(input: &str) -> Result<Vec<(Token, usize)>, &'static str> {
     let mut lexer = Lexer::new(input);
     let mut output = Vec::new();
 
@@ -272,7 +296,7 @@ pub fn lex(input: &str) -> Result<Vec<(usize, Token, &str)>, &'static str> {
             Err(error) => {
                 return Err(error);
             }
-            Ok(token @ (_, EOF, _)) => {
+            Ok(token @ (EOF, _)) => {
                 output.push(token);
                 return Ok(output);
             }
@@ -289,12 +313,12 @@ fn test_lexer() {
     let program = "(Hello - world)";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok((0, LParen, "(")));
-    assert_eq!(lexer.next(), Ok((1, TypeName, "Hello")));
-    assert_eq!(lexer.next(), Ok((7, Operator, "-")));
-    assert_eq!(lexer.next(), Ok((9, VarName, "world")));
-    assert_eq!(lexer.next(), Ok((14, RParen, ")")));
-    assert_eq!(lexer.next(), Ok((15, EOF, "")));
+    assert_eq!(lexer.next(), Ok(((LParen, 0))));
+    assert_eq!(lexer.next(), Ok(((TypeName("Hello"), 1))));
+    assert_eq!(lexer.next(), Ok(((Operator("-"), 7))));
+    assert_eq!(lexer.next(), Ok(((VarName("world"), 9))));
+    assert_eq!(lexer.next(), Ok(((RParen, 14))));
+    assert_eq!(lexer.next(), Ok(((EOF, 15))));
 }
 
 
@@ -303,11 +327,11 @@ fn test_lexer_numbers() {
     let program = "1 234 -5 6";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok((0, Number, "1")));
-    assert_eq!(lexer.next(), Ok((2, Number, "234")));
-    assert_eq!(lexer.next(), Ok((6, Number, "-5")));
-    assert_eq!(lexer.next(), Ok((9, Number, "6")));
-    assert_eq!(lexer.next(), Ok((10, EOF, "")));
+    assert_eq!(lexer.next(), Ok(((Number("1"), 0))));
+    assert_eq!(lexer.next(), Ok(((Number("234"), 2))));
+    assert_eq!(lexer.next(), Ok(((Number("-5"), 6))));
+    assert_eq!(lexer.next(), Ok(((Number("6"), 9))));
+    assert_eq!(lexer.next(), Ok(((EOF, 10))));
 }
 
 
@@ -316,13 +340,13 @@ fn test_lexer_indentation() {
     let program = "0\n  2\n  2\n    4\n      6\n  2\n";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok((0, Number, "0")));
-    assert_eq!(lexer.next(), Ok((2, Number, "2")));
-    assert_eq!(lexer.next(), Ok((2, Number, "2")));
-    assert_eq!(lexer.next(), Ok((4, Number, "4")));
-    assert_eq!(lexer.next(), Ok((6, Number, "6")));
-    assert_eq!(lexer.next(), Ok((2, Number, "2")));
-    assert_eq!(lexer.next(), Ok((0, EOF, "")));
+    assert_eq!(lexer.next(), Ok(((Number("0"), 0))));
+    assert_eq!(lexer.next(), Ok(((Number("2"), 2))));
+    assert_eq!(lexer.next(), Ok(((Number("2"), 2))));
+    assert_eq!(lexer.next(), Ok(((Number("4"), 4))));
+    assert_eq!(lexer.next(), Ok(((Number("6"), 6))));
+    assert_eq!(lexer.next(), Ok(((Number("2"), 2))));
+    assert_eq!(lexer.next(), Ok(((EOF, 0))));
 }
 
 
@@ -331,15 +355,15 @@ fn test_python_style_list() {
     let program = "a = [\n  1,\n  2,\n]";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok((0, VarName, "a")));
-    assert_eq!(lexer.next(), Ok((2, Equals, "=")));
-    assert_eq!(lexer.next(), Ok((4, LBracket, "[")));
-    assert_eq!(lexer.next(), Ok((2, Number, "1")));
-    assert_eq!(lexer.next(), Ok((3, Comma, ",")));
-    assert_eq!(lexer.next(), Ok((2, Number, "2")));
-    assert_eq!(lexer.next(), Ok((3, Comma, ",")));
-    assert_eq!(lexer.next(), Ok((0, RBracket, "]")));
-    assert_eq!(lexer.next(), Ok((1, EOF, "")));
+    assert_eq!(lexer.next(), Ok(((VarName("a"), 0))));
+    assert_eq!(lexer.next(), Ok(((Equals, 2))));
+    assert_eq!(lexer.next(), Ok(((LBracket, 4))));
+    assert_eq!(lexer.next(), Ok(((Number("1"), 2))));
+    assert_eq!(lexer.next(), Ok(((Comma, 3))));
+    assert_eq!(lexer.next(), Ok(((Number("2"), 2))));
+    assert_eq!(lexer.next(), Ok(((Comma, 3))));
+    assert_eq!(lexer.next(), Ok(((RBracket, 0))));
+    assert_eq!(lexer.next(), Ok(((EOF, 1))));
 }
 
 
@@ -348,12 +372,12 @@ fn test_haskell_style_list() {
     let program = "a =\n  [ 1\n  , 2\n  ]";
     let mut lexer = Lexer::new(program);
 
-    assert_eq!(lexer.next(), Ok((0, VarName, "a")));
-    assert_eq!(lexer.next(), Ok((2, Equals, "=")));
-    assert_eq!(lexer.next(), Ok((2, LBracket, "[")));
-    assert_eq!(lexer.next(), Ok((4, Number, "1")));
-    assert_eq!(lexer.next(), Ok((2, Comma, ",")));
-    assert_eq!(lexer.next(), Ok((4, Number, "2")));
-    assert_eq!(lexer.next(), Ok((2, RBracket, "]")));
-    assert_eq!(lexer.next(), Ok((3, EOF, "")));
+    assert_eq!(lexer.next(), Ok(((VarName("a"), 0))));
+    assert_eq!(lexer.next(), Ok(((Equals, 2))));
+    assert_eq!(lexer.next(), Ok(((LBracket, 2))));
+    assert_eq!(lexer.next(), Ok(((Number("1"), 4))));
+    assert_eq!(lexer.next(), Ok(((Comma, 2))));
+    assert_eq!(lexer.next(), Ok(((Number("2"), 4))));
+    assert_eq!(lexer.next(), Ok(((RBracket, 2))));
+    assert_eq!(lexer.next(), Ok(((EOF, 3))));
 }
